@@ -1,4 +1,4 @@
-# Advent DALL-E (C# Advent 2023 Day 17)
+# Holiday DALL-E (Extended from C# Advent 2023 Day 17)
 
 >  *This article is part of C# Advent 2023. For more articles in the series by other authors, visit [csadvent.christmas](https://www.csadvent.christmas/).*
 
@@ -7,12 +7,10 @@ NOTE: This repo contains the completed project, I recommend that you **do not** 
   ---
 ![Santa Writing Code](images/santa.png)
 
-### Santa needs a little help!
-Merry Christmas! Santa has been busy this year and needed a little help generating images for his Christmas cards. He realized that DALL-3 would be perfect, but he doesn't have time to learn how to write effective prompts for DALL-E. 
+### Santa needs a little help (and so do other holidays)!
+Originally created for Christmas! But now this application supports multiple holidays and celebrations. Whether it's Valentine's Day romance, Easter spring themes, Halloween spookiness, or Birthday celebrations, this AI-powered image generator creates beautiful themed images for any occasion.
 
-Santa Thought: ***What if I had an AI create the image prompts for me?***
-
-Santa called in Cradle, his Chief ML Engineer Elf, and asked if it was possible.  Cradle replied its not only possible but I'll have it ready for you in under an hour!
+The application uses AI to create the image prompts for you, generating holiday-specific scenes based on your inspiration!
 
 ### Creating the Win UI3 Project
 
@@ -43,7 +41,7 @@ Since the focus of this tutorial is using Open AI models in C# we are going to s
             <RowDefinition Height="1*" />
         </Grid.RowDefinitions>
         <Image Grid.Row="0" Grid.RowSpan="4" Source="Assets/background.jpg" Stretch="UniformToFill"></Image>
-        <TextBlock Grid.Row="0" FontFamily="Segoe UI" FontSize="24" Margin="50,10,0,5" Foreground="DarkGreen">Advent DALL-E</TextBlock>
+        <TextBlock Grid.Row="0" FontFamily="Segoe UI" FontSize="24" Margin="50,10,0,5" Foreground="DarkGreen">Holiday DALL-E</TextBlock>
 
         <Border Grid.Row="1" BorderThickness="2" BorderBrush="Gainsboro" Background="#FFFFFFFF" Margin="60,10">
             <Image x:Name="GeneratedImage" Stretch="Uniform"></Image>
@@ -51,10 +49,21 @@ Since the focus of this tutorial is using Open AI models in C# we are going to s
         <ProgressRing x:Name="ProgressIndicator" Grid.Row="1" IsActive="False" Background="LightGray" Width="100" Height="100" />
         <TextBlock x:Name="GeneratedPrompt" Visibility="Collapsed" Grid.Row="1" FontFamily="Segoe UI" FontSize="18" Foreground="Black" HorizontalAlignment="Center" VerticalAlignment="Bottom" TextWrapping="Wrap" Width="auto" Height="auto" Margin="80,50">Prompt goes here</TextBlock>
 
-        <TextBox x:Name="HumanPrompt" Grid.Row="2" PlaceholderText="Enter Inspiration" AutomationProperties.Name="multi-line TextBox" BorderBrush="Gainsboro" BorderThickness="2" Margin="20,50,20,5" Width="auto" Height="auto" AcceptsReturn="True" IsSpellCheckEnabled="True"></TextBox>
+        <TextBox x:Name="HumanPrompt" Grid.Row="2" PlaceholderText="Enter Inspiration" AutomationProperties.Name="multi-line TextBox" BorderBrush="Gainsboro" BorderThickness="2" Margin="20,50,20,25" Width="auto" Height="auto" AcceptsReturn="True" IsSpellCheckEnabled="True"></TextBox>
+        
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Left" Margin="25,0,0,0" VerticalAlignment="Bottom">
+            <TextBlock Text="Holiday:" FontFamily="Segoe UI" FontSize="14" Foreground="White" VerticalAlignment="Center" Margin="0,0,10,0"/>
+            <ComboBox x:Name="HolidaySelector" SelectedIndex="0" MinWidth="120" Background="GhostWhite">
+                <ComboBoxItem Content="Christmas"/>
+                <ComboBoxItem Content="Valentine's Day"/>
+                <ComboBoxItem Content="Easter"/>
+                <ComboBoxItem Content="Halloween"/>
+                <ComboBoxItem Content="Birthday"/>
+            </ComboBox>
+        </StackPanel>
         
         <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="30,0" Spacing="30">
-            <Button x:Name="Generate" Click="GenerateImage_Click" Background="GhostWhite" Foreground="DarkGreen" FontWeight="SemiBold">Advent of DALL-E</Button>
+            <Button x:Name="Generate" Click="GenerateImage_Click" Background="GhostWhite" Foreground="DarkGreen" FontWeight="SemiBold">Generate Holiday Image</Button>
             <Button x:Name="Save" Click="Save_Click" Background="GhostWhite" Foreground="DarkGreen" FontWeight="SemiBold" IsEnabled="False">Save Image</Button>
         </StackPanel>
 
@@ -104,7 +113,7 @@ Since the focus of this tutorial is using Open AI models in C# we are going to s
             Generate.IsEnabled = true;
         }
 
-        private const string SAVE_FOLDER = "Advent DALLE";
+        private const string SAVE_FOLDER = "Holiday DALLE";
 
         private static async Task<string> GetPicturesFolder()
         {
@@ -178,14 +187,16 @@ Instead of carefully creating a prompt to generate an image we will have GPT-4 d
 
 This makes a requiest using client to get a chat completion asyncronously.  We want it to generate only 1 completion.  We want it to be very creative so we give it a temperature of 1.0.  We also want it to be fairly verbose and descriptive so we set MaxTokens to 256.  Finally, We specify that we want gpt-4.  
 
-In the messages we create a prompt, feel free to experiment with this prompt later but start with this prompt which will get great results.  Notice that we place the prompt into a System Message, and what the user enters for inspiration is the UserMessage.
+In the messages we create a prompt, feel free to experiment with this prompt later but start with this prompt which will get great results.  Notice that we place the prompt into a System Message, and what the user enters for inspiration is the UserMessage. The system message now dynamically changes based on the selected holiday.
 
 
 5. Finally return the result of the completion.  The final method should look like this:
 ```
-       private static async Task<string> GeneratePrompt(string userPrompt)
+       private static async Task<string> GeneratePrompt(string userPrompt, string holiday)
        {
            OpenAIClient client = new(OPENAI_KEY);
+
+           var systemMessage = GetHolidaySystemMessage(holiday);
 
            var responseCompletion = await client.GetChatCompletionsAsync(
                new ChatCompletionsOptions()
@@ -195,10 +206,26 @@ In the messages we create a prompt, feel free to experiment with this prompt lat
                    MaxTokens = 256,                    
                    DeploymentName = "gpt-4",
                    Messages = {
-                       new ChatRequestSystemMessage("Create a prompt for Dall-e that will generate a beautiful Christmas scene using the following text for inspiration:"),
+                       new ChatRequestSystemMessage(systemMessage),
                        new ChatRequestUserMessage(userPrompt),
                    },
                });
+
+           return responseCompletion.Value.Choices[0].Message.Content;
+       }
+
+       private static string GetHolidaySystemMessage(string holiday)
+       {
+           return holiday switch
+           {
+               "Christmas" => "Create a prompt for Dall-e that will generate a beautiful Christmas scene using the following text for inspiration:",
+               "Valentine's Day" => "Create a prompt for Dall-e that will generate a romantic Valentine's Day scene with hearts, roses, and love themes using the following text for inspiration:",
+               "Easter" => "Create a prompt for Dall-e that will generate a festive Easter scene with spring flowers, Easter eggs, bunnies, and pastel colors using the following text for inspiration:",
+               "Halloween" => "Create a prompt for Dall-e that will generate a spooky Halloween scene with pumpkins, ghosts, witches, and autumn themes using the following text for inspiration:",
+               "Birthday" => "Create a prompt for Dall-e that will generate a celebratory birthday scene with cake, balloons, presents, and party decorations using the following text for inspiration:",
+               _ => "Create a prompt for Dall-e that will generate a beautiful festive scene using the following text for inspiration:"
+           };
+       }
 
            return responseCompletion.Value.Choices[0].Message.Content;
        }
@@ -214,16 +241,23 @@ In the messages we create a prompt, feel free to experiment with this prompt lat
             GeneratedImage.Source = null;
             WorkingState();
 
-            _currentPrompt = await GeneratePrompt(HumanPrompt.Text);
+            var selectedHoliday = GetSelectedHoliday();
+            _currentPrompt = await GeneratePrompt(HumanPrompt.Text, selectedHoliday);
 
             ShowPrompt(_currentPrompt);
 
             FinishedState();
         }
+
+        private string GetSelectedHoliday()
+        {
+            var selectedItem = HolidaySelector.SelectedItem as ComboBoxItem;
+            return selectedItem?.Content?.ToString() ?? "Christmas";
+        }
 ```
 
-7. Run the solution.  Try entering some inspiration for your Christmas image and click generate.
-8. Notice that if you click generate again you get a totally different prompt, this is because of the high temperature.
+7. Run the solution.  Try selecting different holidays and entering some inspiration for your themed image and click generate.
+8. Notice that you can now generate images for different holidays with appropriate themed prompts!
 
 ### Generating the Picture with DALL-E 3
 
@@ -314,8 +348,12 @@ We need one more thing for Santa's solution to be complete, we need the ability 
         {
             WorkingState();
             var folder = await GetPicturesFolder();
-            var destination = Path.Combine(folder, SAVE_FOLDER, $"{HumanPrompt.Text}.png");
-            var destination2 = Path.Combine(folder, SAVE_FOLDER, $"{HumanPrompt.Text}.txt");
+            var selectedHoliday = GetSelectedHoliday();
+            var holidayFolder = Path.Combine(folder, SAVE_FOLDER, selectedHoliday);
+            Directory.CreateDirectory(holidayFolder);
+            
+            var destination = Path.Combine(holidayFolder, $"{HumanPrompt.Text}.png");
+            var destination2 = Path.Combine(holidayFolder, $"{HumanPrompt.Text}.txt");
 
             using (var client = new WebClient())
             {
@@ -333,7 +371,15 @@ We need one more thing for Santa's solution to be complete, we need the ability 
         }
 ```
 
-2. Run the solution.  Try different prompts and save your favorites!
+2. Run the solution.  Try different holidays and prompts and save your favorites! Images are now organized by holiday in separate folders.
+
+## Supported Holidays
+
+- **Christmas**: Traditional Christmas scenes with snow, Santa, trees, and festive decorations
+- **Valentine's Day**: Romantic scenes with hearts, roses, cupid, and love themes
+- **Easter**: Spring celebrations with Easter eggs, bunnies, flowers, and pastel colors
+- **Halloween**: Spooky scenes with pumpkins, ghosts, witches, and autumn themes
+- **Birthday**: Celebratory scenes with cakes, balloons, presents, and party decorations
 
 ---
 
@@ -343,4 +389,6 @@ We need one more thing for Santa's solution to be complete, we need the ability 
 
 An hour later Santa returns.  Cradle, the elf, is just finshing a frantic coding session.  Cradle looks up and smiles! 
 
-**Merry Christmas**
+**Happy Holidays!**
+
+The application now supports multiple holidays and celebrations, making it perfect for generating themed images year-round. Whether you're preparing for Christmas, Valentine's Day, Easter, Halloween, or Birthday celebrations, this AI-powered tool will help you create beautiful, themed images with ease.
