@@ -23,41 +23,81 @@ namespace Dalle3_CSharp_Advent
 
         private async void Save_Click(object sender, RoutedEventArgs e)
         {
+            if (_currentImage == null)
+            {
+                ShowErrorNotification("No Image to Save", "Please generate an image first before trying to save.");
+                return;
+            }
+
             WorkingState();
-            var folder = await GetPicturesFolder();
-            var destination = Path.Combine(folder, SAVE_FOLER, $"{HumanPrompt.Text}.png");
-            var destination2 = Path.Combine(folder, SAVE_FOLER, $"{HumanPrompt.Text}.txt");
-
-            using (var client = new WebClient())
+            
+            try
             {
-                client.DownloadFile(_currentImage, destination);
-            }
+                var folder = await GetPicturesFolder();
+                var destination = Path.Combine(folder, SAVE_FOLER, $"{HumanPrompt.Text}.png");
+                var destination2 = Path.Combine(folder, SAVE_FOLER, $"{HumanPrompt.Text}.txt");
 
-            using (StreamWriter outputFile = new StreamWriter(destination2, false))
+                using (var client = new WebClient())
+                {
+                    client.DownloadFile(_currentImage, destination);
+                }
+
+                using (StreamWriter outputFile = new StreamWriter(destination2, false))
+                {
+                    outputFile.WriteLine(_currentPrompt);
+                }
+
+                SaveNotification.Title = "Image Saved";
+                SaveNotification.Subtitle = destination;
+                SaveNotification.IsOpen = true;
+            }
+            catch (Exception ex)
             {
-                outputFile.WriteLine(_currentPrompt);
+                ShowErrorNotification("Error Saving Image", ex.Message);
             }
-
-            SaveNotification.Subtitle = destination;
-            SaveNotification.IsOpen = true;
-            FinishedState();
+            finally
+            {
+                FinishedState();
+            }
         }
 
         private async void GenerateImage_Click(object sender, RoutedEventArgs e)
         {
+            // Validate OpenAI API key before proceeding
+            if (!IsValidApiKey(OPENAI_KEY))
+            {
+                ShowApiKeyErrorNotification();
+                return;
+            }
+
+            // Validate user input
+            if (string.IsNullOrWhiteSpace(HumanPrompt.Text))
+            {
+                ShowErrorNotification("Input Required", "Please enter some inspiration text before generating an image.");
+                return;
+            }
+
             GeneratedImage.Source = null;
             WorkingState();
 
-            _currentPrompt = await GeneratePrompt(HumanPrompt.Text);
+            try
+            {
+                _currentPrompt = await GeneratePrompt(HumanPrompt.Text);
 
-            ShowPrompt(_currentPrompt);
-            var image = await GenerateImage(_currentPrompt);
-            HidePrompt();
+                ShowPrompt(_currentPrompt);
+                var image = await GenerateImage(_currentPrompt);
+                HidePrompt();
 
-            GeneratedImage.Source = image;
+                GeneratedImage.Source = image;
 
-            FinishedState();
-            Save.IsEnabled = true;
+                FinishedState();
+                Save.IsEnabled = true;
+            }
+            catch (Exception ex)
+            {
+                ShowErrorNotification("Error generating image", ex.Message);
+                FinishedState();
+            }
         }
 
         private static async Task<string> GeneratePrompt(string userPrompt)
@@ -126,6 +166,25 @@ namespace Dalle3_CSharp_Advent
             var myPictures = await StorageLibrary.GetLibraryAsync(KnownLibraryId.Pictures);
             Directory.CreateDirectory(Path.Combine(myPictures.SaveFolder.Path, SAVE_FOLER));
             return myPictures.SaveFolder.Path;
+        }
+
+        private static bool IsValidApiKey(string apiKey)
+        {
+            return !string.IsNullOrEmpty(apiKey) && !string.IsNullOrWhiteSpace(apiKey);
+        }
+
+        private void ShowApiKeyErrorNotification()
+        {
+            SaveNotification.Title = "API Key Required";
+            SaveNotification.Subtitle = "Please add your OpenAI API key to the OPENAI_KEY constant in MainWindow.xaml.cs. See README.md for instructions.";
+            SaveNotification.IsOpen = true;
+        }
+
+        private void ShowErrorNotification(string title, string message)
+        {
+            SaveNotification.Title = title;
+            SaveNotification.Subtitle = message;
+            SaveNotification.IsOpen = true;
         }
     }
 }
